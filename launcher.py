@@ -15,41 +15,34 @@ except:
 pygame.init()
 pygame.joystick.init()
 
-# Pełny ekran w natywnej rozdzielczości
+# Pełny ekran
 screen = pygame.display.set_mode(
     (0, 0), 
     pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF
 )
 width, height = screen.get_size()
 
-# Paleta - surowy minimalizm i odcienie szarości
-CLR_BG = (0, 0, 0)          # Idealna czerń
+# Paleta kolorów - tylko czerń, szarości i biel
+CLR_BG = (0, 0, 0)          # Czarne tło
 CLR_BOX_OFF = (40, 40, 40)  # Ciemnoszary kafelek
-CLR_BOX_ON = (90, 90, 90)   # Jasnoszary kafelek
-CLR_TEXT = (255, 255, 255)  # Czysta biel
+CLR_BOX_ON = (100, 100, 100) # Jasnoszary kafelek (aktywny)
+CLR_TEXT = (255, 255, 255)  # Biały napis
 
-font = pygame.font.SysFont("Arial", 55, bold=True)
+font = pygame.font.SysFont("Arial", 60, bold=True)
 options = ["PC", "PLAYNITE"]
 selected = 0
-cooldown = 0
 
-joysticks = []
-
+# Bezpieczne odświeżanie padów
 def refresh_joysticks():
-    """Całkowite odświeżenie i bezpieczna ponowna inicjalizacja padów."""
-    global joysticks
     try:
         pygame.joystick.quit()
         pygame.joystick.init()
-        joysticks = []
         for i in range(pygame.joystick.get_count()):
             joy = pygame.joystick.Joystick(i)
             joy.init()
-            joysticks.append(joy)
     except:
         pass
 
-# Szukaj padów na starcie
 refresh_joysticks()
 
 # Wymiary klocków
@@ -80,10 +73,8 @@ clock = pygame.time.Clock()
 
 while True:
     screen.fill(CLR_BG)
-    if cooldown > 0:
-        cooldown -= 1
-
     mouse_pos = pygame.mouse.get_pos()
+    
     for i, rect in enumerate(button_rects):
         if rect.collidepoint(mouse_pos):
             selected = i
@@ -92,10 +83,11 @@ while True:
         if event.type == pygame.QUIT:
             sys.exit()
         
-        # Wykrywanie wpięcia/włączenia pada w locie
+        # Automatyczne podpinanie padów w dowolnym momencie
         if event.type in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED):
             refresh_joysticks()
         
+        # Sterowanie klawiaturą
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP:
                 selected = 0
@@ -104,34 +96,33 @@ while True:
             if event.key == pygame.K_RETURN:
                 trigger_launch(selected)
                 
+        # Sterowanie myszką
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 for i, rect in enumerate(button_rects):
                     if rect.collidepoint(event.pos):
                         trigger_launch(i)
 
+        # Kliknięcie dowolnego przycisku na padzie zatwierdza
         if event.type == pygame.JOYBUTTONDOWN:
             trigger_launch(selected)
 
-    # Bezpieczna obsługa ruchu na padzie (odporna na błędy Windowsa)
-    for joy in joysticks:
-        if cooldown == 0:
-            try:
-                axis = joy.get_axis(1) if joy.get_numaxes() > 1 else 0
-                hat = joy.get_hat(0) if joy.get_numhats() > 0 else (0, 0)
-                
-                if axis > 0.5 or hat[1] == -1:
+        # BEZPIECZNE STEROWANIE GAŁKĄ (Brak crashów przy włączaniu pada)
+        if event.type == pygame.JOYAXISMOTION:
+            if event.axis == 1: # Pionowa oś lewej gałki
+                if event.value > 0.5:
                     selected = 1
-                    cooldown = 15
-                elif axis < -0.5 or hat[1] == 1:
+                elif event.value < -0.5:
                     selected = 0
-                    cooldown = 15
-            except:
-                # W razie jakiegokolwiek błędu odczytu, resetujemy urządzenia i jedziemy dalej
-                refresh_joysticks()
-                break
 
-    # Rysowanie kafelków
+        # BEZPIECZNE STEROWANIE KRZYŻAKIEM
+        if event.type == pygame.JOYHATMOTION:
+            if event.value[1] == -1: # W dół
+                selected = 1
+            elif event.value[1] == 1: # W górę
+                selected = 0
+
+    # Rysowanie interfejsu (Czysty minimalizm)
     for i, rect in enumerate(button_rects):
         box_color = CLR_BOX_ON if i == selected else CLR_BOX_OFF
         pygame.draw.rect(screen, box_color, rect)
