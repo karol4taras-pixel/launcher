@@ -15,52 +15,54 @@ except:
 pygame.init()
 pygame.joystick.init()
 
-# Pełny ekran
+# Pełny ekran w natywnej rozdzielczości
 screen = pygame.display.set_mode(
     (0, 0), 
     pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF
 )
 width, height = screen.get_size()
 
-# Monochromatyczna paleta (Tylko odcienie szarości)
-CLR_BG = (15, 15, 15)       # Głęboka czerń/ciemny szary
-CLR_BOX_OFF = (30, 30, 30)  # Ciemnoszary kafelek (nieaktywny)
-CLR_BOX_ON = (70, 70, 70)   # Jasnoszary kafelek (wybrany)
-CLR_TEXT = (240, 240, 240)  # Biały napis
+# Paleta - surowy minimalizm i odcienie szarości
+CLR_BG = (0, 0, 0)          # Idealna czerń
+CLR_BOX_OFF = (40, 40, 40)  # Ciemnoszary kafelek
+CLR_BOX_ON = (90, 90, 90)   # Jasnoszary kafelek
+CLR_TEXT = (255, 255, 255)  # Czysta biel
 
-font = pygame.font.SysFont("Arial", 50, bold=True)
+font = pygame.font.SysFont("Arial", 55, bold=True)
 options = ["PC", "PLAYNITE"]
 selected = 0
 cooldown = 0
 
-# Lista na aktywne pady
 joysticks = []
 
 def refresh_joysticks():
-    """Odświeża listę podpiętych kontrolerów."""
+    """Całkowite odświeżenie i bezpieczna ponowna inicjalizacja padów."""
     global joysticks
-    pygame.joystick.quit()
-    pygame.joystick.init()
-    joysticks = []
-    for i in range(pygame.joystick.get_count()):
-        joy = pygame.joystick.Joystick(i)
-        joy.init()
-        joysticks.append(joy)
+    try:
+        pygame.joystick.quit()
+        pygame.joystick.init()
+        joysticks = []
+        for i in range(pygame.joystick.get_count()):
+            joy = pygame.joystick.Joystick(i)
+            joy.init()
+            joysticks.append(joy)
+    except:
+        pass
 
-# Pierwsze wyszukanie padów na starcie
+# Szukaj padów na starcie
 refresh_joysticks()
 
-# Wymiary minimalistycznych kafelków
-BTN_W, BTN_H = 500, 100
+# Wymiary klocków
+BTN_W, BTN_H = 450, 90
 rect_pc = pygame.Rect(
     width//2 - BTN_W//2, 
-    height//2 - BTN_H - 20, 
+    height//2 - BTN_H - 25, 
     BTN_W, 
     BTN_H
 )
 rect_pn = pygame.Rect(
     width//2 - BTN_W//2, 
-    height//2 + 20, 
+    height//2 + 25, 
     BTN_W, 
     BTN_H
 )
@@ -90,7 +92,7 @@ while True:
         if event.type == pygame.QUIT:
             sys.exit()
         
-        # dynamiczne wykrywanie podłączenia/odłączenia pada w locie
+        # Wykrywanie wpięcia/włączenia pada w locie
         if event.type in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED):
             refresh_joysticks()
         
@@ -109,10 +111,9 @@ while True:
                         trigger_launch(i)
 
         if event.type == pygame.JOYBUTTONDOWN:
-            if event.button == 0 or event.button == 7:
-                trigger_launch(selected)
+            trigger_launch(selected)
 
-    # Obsługa ruchu dla wszystkich wykrytych padów
+    # Bezpieczna obsługa ruchu na padzie (odporna na błędy Windowsa)
     for joy in joysticks:
         if cooldown == 0:
             try:
@@ -125,11 +126,12 @@ while True:
                 elif axis < -0.5 or hat[1] == 1:
                     selected = 0
                     cooldown = 15
-            except pygame.error:
-                # Zabezpieczenie w razie nagłego odpięcia kabla w trakcie odczytu
+            except:
+                # W razie jakiegokolwiek błędu odczytu, resetujemy urządzenia i jedziemy dalej
                 refresh_joysticks()
+                break
 
-    # Rysowanie klocków
+    # Rysowanie kafelków
     for i, rect in enumerate(button_rects):
         box_color = CLR_BOX_ON if i == selected else CLR_BOX_OFF
         pygame.draw.rect(screen, box_color, rect)
