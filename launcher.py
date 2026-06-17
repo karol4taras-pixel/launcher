@@ -43,7 +43,6 @@ BTN_W, BTN_H = 650, 130
 BTN_CORNER_RAD = 30  # Duże zaokrąglenia
 
 # --- CZCIONKA ---
-# Próbujemy 'Segoe UI Semibold' (Xbox/Windows style), jeśli nie ma, bierzemy Arial.
 preferred_fonts = ["Segoe UI Semibold", "Segoe UI", "Arial"]
 found_font = "Arial"
 available_fonts = pygame.font.get_fonts()
@@ -58,7 +57,6 @@ def create_gradient_surface(w, h, gradient_colors):
     """Generuje gradient poziomy w pamięci."""
     base = pygame.Surface((w, h), pygame.SRCALPHA)
     for y in range(h):
-        # Interpolacja koloru między góra a dołem
         r = gradient_colors[0][0] + (gradient_colors[1][0] - gradient_colors[0][0]) * y / h
         g = gradient_colors[0][1] + (gradient_colors[1][1] - gradient_colors[0][1]) * y / h
         b = gradient_colors[0][2] + (gradient_colors[1][2] - gradient_colors[0][2]) * y / h
@@ -68,41 +66,20 @@ def create_gradient_surface(w, h, gradient_colors):
 def create_button_surface(w, h, colors, is_active=False):
     """Generuje kafelek z zaokrągleniami, gradientem i (opcjonalnie) glow."""
     total_w = w + (GLOW_WIDTH * 2) if is_active else w
+    total_w = int(total_w)
     total_h = h + (GLOW_WIDTH * 2) if is_active else h
+    total_h = int(total_h)
     surface = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
 
     # 1. Rysujemy Cień (Glow) jeśli kafelek jest aktywny
     if is_active:
         glow_surf = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
         for r in range(GLOW_WIDTH):
-            # Cień zanika im dalej od kafelka
             alpha = int(GLOW_ALPHA * (1 - (r / GLOW_WIDTH)**0.7))
-            
-            # Gfxdraw rysuje gładkie zaokrąglone prostokąty
             rect_coords = (GLOW_WIDTH - r, GLOW_WIDTH - r, w + (2*r), h + (2*r))
             pygame.gfxdraw.box(glow_surf, rect_coords, (CLR_GLOW[0], CLR_GLOW[1], CLR_GLOW[2], alpha))
-        
         surface.blit(glow_surf, (0, 0))
 
     # 2. Tworzymy zaokrągloną maskę (kształt kafelka)
     mask = pygame.Surface((w, h), pygame.SRCALPHA)
-    pygame.draw.rect(mask, (255, 255, 255, 255), (0, 0, w, h), border_radius=BTN_CORNER_RAD)
-    
-    # 3. Tworzymy gradient i nakładamy maskę
-    gradient_surf = create_gradient_surface(w, h, colors)
-    gradient_surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-
-    # 4. Dodajemy białą ramkę Fluent Design
-    if is_active:
-        pygame.draw.rect(gradient_surf, CLR_FRAME, (0, 0, w, h), width=3, border_radius=BTN_CORNER_RAD)
-
-    # Nakładamy gotowy kafelek na cień (lub na środek surface'a)
-    pos_x = GLOW_WIDTH if is_active else 0
-    pos_y = GLOW_WIDTH if is_active else 0
-    surface.blit(gradient_surf, (pos_x, pos_y))
-    return surface
-
-# Generujemy gotowe obrazy kafelków
-SURF_PC_OFF = create_button_surface(BTN_W, BTN_H, CLR_GRADIENT_OFF, is_active=False)
-SURF_PC_ON = create_button_surface(BTN_W, BTN_H, CLR_GRADIENT_ON, is_active=True)
-SURF_PN_OFF = create_button_surface(BTN_W
+    pygame.draw.rect(mask, (255
