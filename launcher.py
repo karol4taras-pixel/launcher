@@ -1,11 +1,7 @@
 import os
 import sys
 import subprocess
-import time
 import pygame
-
-# 1. BEZPIECZEŃSTWO STARTU: Czekamy 3 sekundy na załadowanie sterowników USB/pada przez Windows
-time.sleep(3)
 
 # Poprawka na ostrość obrazu
 try:
@@ -17,22 +13,16 @@ except:
 pygame.init()
 pygame.joystick.init()
 
-# Bezpieczna inicjalizacja padów na starcie
-def zainicjuj_pady():
-    try:
-        for i in range(pygame.joystick.get_count()):
-            joy = pygame.joystick.Joystick(i)
-            joy.init()
-    except:
-        pass
-
-zainicjuj_pady()
+joysticks = []
+for i in range(pygame.joystick.get_count()):
+    joy = pygame.joystick.Joystick(i)
+    joy.init()
+    joysticks.append(joy)
 
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 width, height = screen.get_size()
 pygame.display.set_caption("Boot Menu")
 
-# Twoje oryginalne kolory i wygląd
 CZARNY = (10, 10, 12)
 SZARY = (30, 30, 35)
 ZIELONY = (0, 184, 148)
@@ -49,13 +39,37 @@ rects = [rect_pc, rect_konsola]
 
 def uruchom_wybor(indeks):
     pygame.quit()
+    
+    # Ścieżka do nircmd.exe (zakładamy, że jest w tym samym folderze co launcher)
+    nircmd_path = "nircmd.exe"
+    
+    # Odczytujemy zapisane urządzenia z pliku ustawienia.txt
+    audio_pc = ""
+    audio_pn = ""
+    if os.path.exists("ustawienia.txt"):
+        try:
+            with open("ustawienia.txt", "r", encoding="utf-8") as f:
+                linie = [linia.strip() for linia in f.readlines() if linia.strip()]
+                if len(linie) >= 1: audio_pc = linie[0]
+                if len(linie) >= 2: audio_pn = linie[1]
+        except:
+            pass
+
     if indeks == 0:
+        # Przełącz dźwięk na PC, jeśli urządzenie zostało zdefiniowane
+        if audio_pc:
+            subprocess.Popen([nircmd_path, "setdefaultsounddevice", audio_pc])
         sys.exit()
+        
     elif indeks == 1:
+        # Przełącz dźwięk na Playnite, jeśli urządzenie zostało zdefiniowane
+        if audio_pn:
+            subprocess.Popen([nircmd_path, "setdefaultsounddevice", audio_pn])
+            
+        # Odpalenie Playnite
         sciezka_playnite = r"D:\Programs\Playnite\Playnite.FullscreenApp.exe"
         folder_playnite = os.path.dirname(sciezka_playnite)
         try:
-            # Uruchomienie z jawnym wskazaniem folderu roboczego zapobiega WinError 2
             subprocess.Popen([sciezka_playnite, "--fullscreen"], cwd=folder_playnite)
         except:
             pass
@@ -77,49 +91,33 @@ while True:
         if event.type == pygame.QUIT:
             sys.exit()
             
-        # Bezpieczne odświeżanie po wykryciu zmiany sprzętu
-        if event.type in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED):
-            zainicjuj_pady()
-            
-        # Klawiatura
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP: wybrany = 0
             if event.key == pygame.K_DOWN: wybrany = 1
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 uruchom_wybor(wybrany)
                 
-        # Myszka
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 for i, rect in enumerate(rects):
                     if rect.collidepoint(event.pos):
                         uruchom_wybor(i)
 
-        # Pad: Zatwierdzenie przyciskiem
         if event.type == pygame.JOYBUTTONDOWN:
             uruchom_wybor(wybrany)
 
-        # Pad: Bezpieczne sterowanie gałką przez system zdarzeń (brak błędów typu get)
-        if event.type == pygame.JOYAXISMOTION:
-            if cooldown == 0 and event.axis == 1:
-                if event.value > 0.5:
-                    wybrany = 1
-                    cooldown = 15
-                elif event.value < -0.5:
-                    wybrany = 0
-                    cooldown = 15
+    for joy in joysticks:
+        if cooldown == 0:
+            axis = joy.get_axis(1) if joy.get_numaxes() > 1 else 0
+            hat = joy.get_hat(0) if joy.get_numhats() > 0 else (0,0)
+            
+            if axis > 0.5 or hat[1] == -1:
+                wybrany = 1
+                cooldown = 15
+            elif axis < -0.5 or hat[1] == 1:
+                wybrany = 0
+                cooldown = 15
 
-        # Pad: Bezpieczne sterowanie krzyżakiem (D-Pad)
-        if event.type == pygame.JOYHATMOTION:
-            if cooldown == 0:
-                if event.value[1] == -1:
-                    wybrany = 1
-                    cooldown = 15
-                elif event.value[1] == 1:
-                    wybrany = 0
-                    cooldown = 15
-
-    # Rysowanie kafelków (Dokładnie Twój oryginalny design)
     for i, opcja in enumerate(opcje):
         kolor_tla = ZIELONY if i == wybrany else SZARY
         pygame.draw.rect(screen, kolor_tla, rects[i], border_radius=20)
