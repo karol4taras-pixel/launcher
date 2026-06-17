@@ -2,8 +2,13 @@ import os
 import sys
 import subprocess
 import pygame
+import pygame.gfxdraw  # Potrzebne do zaawansowanych cieni
 
-# Poprawka na ostrość obrazu
+# --- KONFIGURACJA ---
+# Twoja dokładna ścieżka do Playnite:
+PATH_PLAYNITE = r"D:\Programs\Playnite\Playnite.FullscreenApp.exe"
+
+# Poprawka na ostrość obrazu na Windows
 try:
     import ctypes
     ctypes.windll.user32.SetProcessDPIAware()
@@ -13,93 +18,91 @@ except:
 pygame.init()
 pygame.joystick.init()
 
-joysticks = []
-for i in range(pygame.joystick.get_count()):
-    joy = pygame.joystick.Joystick(i)
-    joy.init()
-    joysticks.append(joy)
-
-screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+# --- INICJALIZACJA INTERFEJSU ---
+# Pełny ekran w natywnej rozdzielczości monitora
+screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN | pygame.HWSURFACE | pygame.DOUBLEBUF)
 width, height = screen.get_size()
-pygame.display.set_caption("Boot Menu")
+pygame.display.set_caption("Windows / Xbox Style Boot Menu")
 
-CZARNY = (10, 10, 12)
-SZARY = (30, 30, 35)
-ZIELONY = (0, 184, 148)
-BIALY = (255, 255, 255)
+# --- KOLORY INTERFEJSU (Fluent Design) ---
+CLR_BG = (12, 12, 15)  # Bardzo głębokie tło
+CLR_TEXT = (240, 240, 240)  # Off-white dla czcionki
+CLR_FRAME = (255, 255, 255) # Biała ramka dla aktywnego
 
-font = pygame.font.SysFont("Segoe UI", 42, bold=True)
-opcje = ["1. TRYB PC (PULPIT)", "2. KONSOLA (PLAYNITE)"]
-wybrany = 0
-cooldown = 0
+# Gradienty kafelka: [Start, Stop]
+CLR_GRADIENT_OFF = [(35, 35, 40), (20, 20, 25)]  # Ciemny grafit
+CLR_GRADIENT_ON = [(0, 161, 80), (0, 120, 60)]    # Xboxowy zielony
 
-rect_pc = pygame.Rect(width//2 - 300, height//2 - 150, 600, 110)
-rect_konsola = pygame.Rect(width//2 - 300, height//2 + 10, 600, 110)
-rects = [rect_pc, rect_konsola]
+# Cień (Glow): [Kolor, Max_Alpha, Szerokosc]
+CLR_GLOW = (46, 204, 113)  # Jaśniejsza zieleń
+GLOW_WIDTH = 25
+GLOW_ALPHA = 100
 
-def uruchom_wybor(indeks):
-    pygame.quit()
-    if indeks == 0:
-        sys.exit()
-    elif indeks == 1:
-        # Twoja dokładna ścieżka do Playnite, bez dotykania pulpitu Windowsa:
-        sciezka_playnite = r"D:\Programs\Playnite\Playnite.FullscreenApp.exe"
-        subprocess.Popen([sciezka_playnite, "--fullscreen"])
-        sys.exit()
+# Wymiary kafelków
+BTN_W, BTN_H = 650, 130
+BTN_CORNER_RAD = 30  # Duże zaokrąglenia
 
-clock = pygame.time.Clock()
+# --- CZCIONKA ---
+# Próbujemy 'Segoe UI Semibold' (Xbox/Windows style), jeśli nie ma, bierzemy Arial.
+preferred_fonts = ["Segoe UI Semibold", "Segoe UI", "Arial"]
+found_font = "Arial"
+available_fonts = pygame.font.get_fonts()
+for pf in preferred_fonts:
+    if pf.lower().replace(" ", "") in available_fonts:
+        found_font = pf
+        break
+font = pygame.font.SysFont(found_font, 48, bold=True)
 
-while True:
-    screen.fill(CZARNY)
-    if cooldown > 0:
-        cooldown -= 1
+# --- CACHE GENEROWANIA ELEMENTÓW (Dla wydajności) ---
+def create_gradient_surface(w, h, gradient_colors):
+    """Generuje gradient poziomy w pamięci."""
+    base = pygame.Surface((w, h), pygame.SRCALPHA)
+    for y in range(h):
+        # Interpolacja koloru między góra a dołem
+        r = gradient_colors[0][0] + (gradient_colors[1][0] - gradient_colors[0][0]) * y / h
+        g = gradient_colors[0][1] + (gradient_colors[1][1] - gradient_colors[0][1]) * y / h
+        b = gradient_colors[0][2] + (gradient_colors[1][2] - gradient_colors[0][2]) * y / h
+        base.fill((int(r), int(g), int(b), 255), (0, y, w, 1))
+    return base
 
-    mouse_pos = pygame.mouse.get_pos()
-    for i, rect in enumerate(rects):
-        if rect.collidepoint(mouse_pos):
-            wybrany = i
+def create_button_surface(w, h, colors, is_active=False):
+    """Generuje kafelek z zaokrągleniami, gradientem i (opcjonalnie) glow."""
+    total_w = w + (GLOW_WIDTH * 2) if is_active else w
+    total_h = h + (GLOW_WIDTH * 2) if is_active else h
+    surface = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            sys.exit()
+    # 1. Rysujemy Cień (Glow) jeśli kafelek jest aktywny
+    if is_active:
+        glow_surf = pygame.Surface((total_w, total_h), pygame.SRCALPHA)
+        for r in range(GLOW_WIDTH):
+            # Cień zanika im dalej od kafelka
+            alpha = int(GLOW_ALPHA * (1 - (r / GLOW_WIDTH)**0.7))
             
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP: wybrany = 0
-            if event.key == pygame.K_DOWN: wybrany = 1
-            if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                uruchom_wybor(wybrany)
-                
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                for i, rect in enumerate(rects):
-                    if rect.collidepoint(event.pos):
-                        uruchom_wybor(i)
-
-        if event.type == pygame.JOYBUTTONDOWN:
-            uruchom_wybor(wybrany)
-
-    for joy in joysticks:
-        if cooldown == 0:
-            axis = joy.get_axis(1) if joy.get_numaxes() > 1 else 0
-            hat = joy.get_hat(0) if joy.get_numhats() > 0 else (0,0)
-            
-            if axis > 0.5 or hat[1] == -1:
-                wybrany = 1
-                cooldown = 15
-            elif axis < -0.5 or hat[1] == 1:
-                wybrany = 0
-                cooldown = 15
-
-    for i, opcja in enumerate(opcje):
-        kolor_tla = ZIELONY if i == wybrany else SZARY
-        pygame.draw.rect(screen, kolor_tla, rects[i], border_radius=20)
+            # Gfxdraw rysuje gładkie zaokrąglone prostokąty
+            rect_coords = (GLOW_WIDTH - r, GLOW_WIDTH - r, w + (2*r), h + (2*r))
+            pygame.gfxdraw.box(glow_surf, rect_coords, (CLR_GLOW[0], CLR_GLOW[1], CLR_GLOW[2], alpha))
         
-        if i == wybrany:
-            pygame.draw.rect(screen, BIALY, rects[i], width=3, border_radius=20)
-            
-        tekst = font.render(opcja, True, BIALY)
-        text_rect = tekst.get_rect(center=rects[i].center)
-        screen.blit(tekst, text_rect)
+        surface.blit(glow_surf, (0, 0))
 
-    pygame.display.flip()
-    clock.tick(60)
+    # 2. Tworzymy zaokrągloną maskę (kształt kafelka)
+    mask = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.draw.rect(mask, (255, 255, 255, 255), (0, 0, w, h), border_radius=BTN_CORNER_RAD)
+    
+    # 3. Tworzymy gradient i nakładamy maskę
+    gradient_surf = create_gradient_surface(w, h, colors)
+    gradient_surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+    # 4. Dodajemy białą ramkę Fluent Design
+    if is_active:
+        pygame.draw.rect(gradient_surf, CLR_FRAME, (0, 0, w, h), width=3, border_radius=BTN_CORNER_RAD)
+
+    # Nakładamy gotowy kafelek na cień (lub na środek surface'a)
+    pos_x = GLOW_WIDTH if is_active else 0
+    pos_y = GLOW_WIDTH if is_active else 0
+    surface.blit(gradient_surf, (pos_x, pos_y))
+    return surface
+
+# Generujemy gotowe obrazy kafelków
+SURF_PC_OFF = create_button_surface(BTN_W, BTN_H, CLR_GRADIENT_OFF, is_active=False)
+SURF_PC_ON = create_button_surface(BTN_W, BTN_H, CLR_GRADIENT_ON, is_active=True)
+SURF_PN_OFF = create_button_surface(BTN_W
