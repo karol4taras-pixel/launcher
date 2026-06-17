@@ -1,7 +1,11 @@
 import os
 import sys
 import subprocess
+import time
 import pygame
+
+# 1. BEZPIECZEŃSTWO STARTU: Czekamy 3 sekundy na załadowanie sterowników USB/pada przez Windows
+time.sleep(3)
 
 # Poprawka na ostrość obrazu
 try:
@@ -13,30 +17,22 @@ except:
 pygame.init()
 pygame.joystick.init()
 
-joysticks = []
-
-def odswiez_kontrolery():
-    """Bezpiecznie inicjuje i aktualizuje listę podpiętych padów."""
-    global joysticks
+# Bezpieczna inicjalizacja padów na starcie
+def zainicjuj_pady():
     try:
-        pygame.joystick.quit()
-        pygame.joystick.init()
-        joysticks = []
         for i in range(pygame.joystick.get_count()):
             joy = pygame.joystick.Joystick(i)
             joy.init()
-            joysticks.append(joy)
     except:
         pass
 
-# Wyszukanie kontrolerów na starcie
-odswiez_kontrolery()
+zainicjuj_pady()
 
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 width, height = screen.get_size()
 pygame.display.set_caption("Boot Menu")
 
-# Oryginalne kolory z Twojego kodu
+# Twoje oryginalne kolory i wygląd
 CZARNY = (10, 10, 12)
 SZARY = (30, 30, 35)
 ZIELONY = (0, 184, 148)
@@ -57,7 +53,12 @@ def uruchom_wybor(indeks):
         sys.exit()
     elif indeks == 1:
         sciezka_playnite = r"D:\Programs\Playnite\Playnite.FullscreenApp.exe"
-        subprocess.Popen([sciezka_playnite, "--fullscreen"])
+        folder_playnite = os.path.dirname(sciezka_playnite)
+        try:
+            # Uruchomienie z jawnym wskazaniem folderu roboczego zapobiega WinError 2
+            subprocess.Popen([sciezka_playnite, "--fullscreen"], cwd=folder_playnite)
+        except:
+            pass
         sys.exit()
 
 clock = pygame.time.Clock()
@@ -76,49 +77,49 @@ while True:
         if event.type == pygame.QUIT:
             sys.exit()
             
-        # Wykrywanie podłączenia/włączenia pada w locie
+        # Bezpieczne odświeżanie po wykryciu zmiany sprzętu
         if event.type in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED):
-            odswiez_kontrolery()
+            zainicjuj_pady()
             
+        # Klawiatura
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP: wybrany = 0
             if event.key == pygame.K_DOWN: wybrany = 1
             if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                 uruchom_wybor(wybrany)
                 
+        # Myszka
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 for i, rect in enumerate(rects):
                     if rect.collidepoint(event.pos):
                         uruchom_wybor(i)
 
+        # Pad: Zatwierdzenie przyciskiem
         if event.type == pygame.JOYBUTTONDOWN:
             uruchom_wybor(wybrany)
 
-    # Bezpieczne odpytywanie stanu gałek i d-pada (odporne na błędy get())
-    if cooldown == 0:
-        for joy in joysticks:
-            try:
-                num_axes = joy.get_numaxes()
-                num_hats = joy.get_numhats()
-                
-                axis = joy.get_axis(1) if num_axes > 1 else 0
-                hat = joy.get_hat(0) if num_hats > 0 else (0,0)
-                
-                if axis > 0.5 or hat[1] == -1:
+        # Pad: Bezpieczne sterowanie gałką przez system zdarzeń (brak błędów typu get)
+        if event.type == pygame.JOYAXISMOTION:
+            if cooldown == 0 and event.axis == 1:
+                if event.value > 0.5:
                     wybrany = 1
                     cooldown = 15
-                    break
-                elif axis < -0.5 or hat[1] == 1:
+                elif event.value < -0.5:
                     wybrany = 0
                     cooldown = 15
-                    break
-            except:
-                # W razie chwilowego błędu systemu przy konfiguracji pada
-                odswiez_kontrolery()
-                break
 
-    # Rysowanie kafelków – dokładnie tak, jak w Twoim kodzie pierwotnym
+        # Pad: Bezpieczne sterowanie krzyżakiem (D-Pad)
+        if event.type == pygame.JOYHATMOTION:
+            if cooldown == 0:
+                if event.value[1] == -1:
+                    wybrany = 1
+                    cooldown = 15
+                elif event.value[1] == 1:
+                    wybrany = 0
+                    cooldown = 15
+
+    # Rysowanie kafelków (Dokładnie Twój oryginalny design)
     for i, opcja in enumerate(opcje):
         kolor_tla = ZIELONY if i == wybrany else SZARY
         pygame.draw.rect(screen, kolor_tla, rects[i], border_radius=20)
